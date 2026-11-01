@@ -1,0 +1,6 @@
+{
+  "name": "Jarvis OS",
+  "description": "Hyper-advanced AI operating system and digital companion with voice interaction, device automation, and technical console.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
