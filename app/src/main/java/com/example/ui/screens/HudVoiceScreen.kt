@@ -285,7 +285,7 @@ private fun HudTopBar(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-          text = "JARVIS OS // ${personaMode.title.uppercase()}",
+          text = "JARVIS AI // ${personaMode.title.uppercase()}",
           color = TextPrimary,
           fontSize = 12.sp,
           fontWeight = FontWeight.Bold,

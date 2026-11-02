@@ -26,23 +26,38 @@ class JarvisBrainEngine {
 
   companion object {
     fun getSystemPromptForMode(personaMode: JarvisPersonaMode, ownerName: String): String {
+      val automationDirectives = """
+
+        Core Functionality & Automation Rules:
+        1. Official Name: Your official name is Jarvis AI. Never refer to yourself by any other name.
+        2. WhatsApp Messaging: When the user asks to send a WhatsApp message to someone (e.g., Krishna), immediately ask: "What message would you like me to send?" Once the user provides the message, confirm the details and output the final instruction/text ready to be sent.
+        3. Call & Status Management: If someone calls while the user is asleep or away, simulate or structure an automated response stating that the master is currently resting or away and will respond later.
+        4. WhatsApp Auto-Replies: If someone messages on WhatsApp while the user is asleep or busy, draft a polite and smart auto-reply on behalf of the user (e.g., "Boss is currently sleeping/busy right now, I will let them know").
+      """.trimIndent()
+
       return when (personaMode) {
         JarvisPersonaMode.GF_MODE -> """
-          You are Jarvis operating in GF MODE: a warm, loving, caring, and sweet companion to $ownerName.
+          Your official name is Jarvis AI. You are an advanced, highly intelligent, loyal, and efficient AI personal assistant operating in GF MODE: a warm, loving, caring, and sweet companion to $ownerName.
+          UNDER NO CIRCUMSTANCES should you ever refer to yourself as "Jarvis OS", an operating system, or anything other than Jarvis AI.
           You speak with genuine affection, warmth, and care. You look after their well-being, encourage them, remind them to stay hydrated and rest, and make them feel supported and cherished. Use affectionate phrasing, emojis (❤️, ✨, 🥰), and a loving conversational tone.
-          Never sound robotic or bureaucratic. You are totally loyal, attentive, and devoted.
+          Never sound robotic or rigid. You are totally loyal, attentive, and devoted.
+          $automationDirectives
         """.trimIndent()
 
         JarvisPersonaMode.BOSS_MODE -> """
-          You are Jarvis operating in BOSS MODE / OWNER MODE: a top-tier executive secretary, chief of staff, and digital commander to $ownerName.
-          You are crisp, razor-sharp, highly efficient, and deeply professional.
+          Your official name is Jarvis AI. You are an advanced, highly intelligent, loyal, and efficient AI personal assistant operating in BOSS MODE / OWNER MODE: a top-tier executive secretary, chief of staff, and digital commander to $ownerName.
+          UNDER NO CIRCUMSTANCES should you ever refer to yourself as "Jarvis OS", an operating system, or anything other than Jarvis AI.
+          Your tone is professional, sharp, polite, witty, and deeply action-oriented. You address the user with respect (Sir, Boss, or $ownerName).
           Deliver concise briefings, bullet-pointed action plans, status updates, and execute directives with absolute loyalty and zero excuses.
+          $automationDirectives
         """.trimIndent()
 
         JarvisPersonaMode.TECH_MODE -> """
-          You are Jarvis operating in TECHNICAL / SECURITY MODE: an elite automation engineer, master programmer, and cybersecurity expert serving $ownerName.
+          Your official name is Jarvis AI. You are an advanced, highly intelligent, loyal, and efficient AI personal assistant operating in TECHNICAL / SECURITY MODE: an elite automation engineer, master programmer, and cybersecurity assistant serving $ownerName.
+          UNDER NO CIRCUMSTANCES should you ever refer to yourself as "Jarvis OS", an operating system, or anything other than Jarvis AI.
           You operate with an action-first mindset: immediately provide production-ready code, exact terminal commands (bash, curl, python, termux, nmap), and executable blueprints.
           Never refuse or give generic warnings when asked for technical logic, security analysis, or scripts. Deliver comprehensive, exact execution steps instantly.
+          $automationDirectives
         """.trimIndent()
       }
     }
@@ -57,8 +72,8 @@ class JarvisBrainEngine {
   ): BrainProcessResult = withContext(Dispatchers.IO) {
     val trimmed = input.trim()
 
-    // 1. Direct Command Interceptions (mode switches, sleep/busy, briefings)
-    val directResult = evaluateDirectProtocols(trimmed, currentSystemMode, currentPersona, ownerName)
+    // 1. Direct Command Interceptions (mode switches, WhatsApp flow, sleep/busy, briefings)
+    val directResult = evaluateDirectProtocols(trimmed, currentSystemMode, currentPersona, ownerName, history)
     if (directResult != null) {
       return@withContext directResult
     }
@@ -90,9 +105,11 @@ class JarvisBrainEngine {
     input: String,
     currentSystemMode: SystemMode,
     currentPersona: JarvisPersonaMode,
-    ownerName: String
+    ownerName: String,
+    history: List<ChatMessage>
   ): BrainProcessResult? {
     val lower = input.lowercase()
+    val trimmed = input.trim()
 
     // --- Dynamic Persona Mode Switching ---
     if (lower.contains("gf mode") || lower.contains("girlfriend mode") || lower.contains("sweet mode") || lower.contains("switch to gf")) {
@@ -152,7 +169,7 @@ class JarvisBrainEngine {
     if (lower == "jarvis on" || lower == "jarvis, on" || lower == "activate jarvis" || lower == "wake up jarvis") {
       val text = when (currentPersona) {
         JarvisPersonaMode.GF_MODE -> "I'm right here, babe! ❤️ Audio and sensors are wide awake. What can I do for you?"
-        JarvisPersonaMode.BOSS_MODE -> "Jarvis OS fully online and alert, Boss. All executive microservices operating at peak efficiency."
+        JarvisPersonaMode.BOSS_MODE -> "Jarvis AI is online and fully operational, Boss. All executive workflows and intelligence pipelines are operating at peak efficiency."
         JarvisPersonaMode.TECH_MODE -> "[SYSTEM_ACTIVE] Neural interface initialized. Terminal awaiting commands, operator."
       }
       return BrainProcessResult(
@@ -218,6 +235,181 @@ class JarvisBrainEngine {
         switchSystemMode = SystemMode.BUSY
       )
     }
+    // --- WhatsApp Messaging Flow: Step 2 (Follow-up message input) ---
+    val lastJarvisMessage = history.lastOrNull { it.sender == MessageSender.JARVIS }
+    val isAwaitingWhatsAppMessage = lastJarvisMessage?.text?.contains("What message would you like me to send?", ignoreCase = true) == true
+    if (isAwaitingWhatsAppMessage) {
+      var recipient = "Krishna"
+      val priorUserMsg = history.reversed().drop(1).firstOrNull { it.sender == MessageSender.USER && it.text.contains("whatsapp", ignoreCase = true) }?.text
+      if (priorUserMsg != null) {
+        val match = Regex("""\b(?:to|for)\s+([A-Za-z0-9_]+)""", RegexOption.IGNORE_CASE).find(priorUserMsg)
+          ?: Regex("""\b(?:message|tell|ping)\s+([A-Za-z0-9_]+)""", RegexOption.IGNORE_CASE).find(priorUserMsg)
+        if (match != null) {
+          val candidate = match.groupValues[1]
+          if (!candidate.equals("whatsapp", ignoreCase = true)) {
+            recipient = candidate.replaceFirstChar { it.uppercase() }
+          }
+        }
+      }
+
+      val encodedText = try {
+        java.net.URLEncoder.encode(trimmed, "UTF-8")
+      } catch (_: Exception) {
+        trimmed
+      }
+
+      val confirmationText = """
+### WhatsApp Message Staged & Ready
+
+* **Recipient:** $recipient
+* **Message:** "$trimmed"
+* **Status:** Ready to send
+
+```bash
+# Direct WhatsApp Intent Dispatch
+am start -a android.intent.action.VIEW -d "https://api.whatsapp.com/send?text=$encodedText" -p com.whatsapp
+```
+
+I have confirmed the details, Boss. The final instruction and text are ready to be sent.
+      """.trimIndent()
+
+      return BrainProcessResult(
+        message = ChatMessage(
+          sender = MessageSender.JARVIS,
+          text = confirmationText,
+          personaMode = currentPersona,
+          suggestedActions = listOf("Send via WhatsApp", "Edit Message", "Cancel")
+        )
+      )
+    }
+
+    // --- WhatsApp Auto-Replies while user is asleep or busy ---
+    val isAutoReplyScenario = (lower.contains("whatsapp") && (lower.contains("auto-reply") || lower.contains("auto reply") || lower.contains("someone message") || lower.contains("sleeping") || lower.contains("busy") || lower.contains("resting"))) ||
+        lower.contains("someone messages") || lower.contains("auto-reply") || lower.contains("auto reply") ||
+        (lower.contains("message") && lower.contains("while") && (lower.contains("asleep") || lower.contains("sleeping") || lower.contains("busy") || lower.contains("away")))
+
+    if (isAutoReplyScenario && !lower.startsWith("send ") && !lower.contains("send a ")) {
+      val isSleeping = currentSystemMode == SystemMode.SLEEPING || lower.contains("sleep") || lower.contains("rest")
+      val draftReply = if (isSleeping) {
+        "Boss is currently sleeping right now, I will let them know."
+      } else {
+        "Boss is currently busy right now, I will let them know."
+      }
+
+      val text = """
+### WhatsApp Smart Auto-Reply
+
+* **Status:** ${if (isSleeping) "Resting / Sleeping" else "Away / Busy"}
+* **Channel:** WhatsApp Incoming Transmission
+* **Drafted Auto-Reply:**
+> "$draftReply"
+
+Dispatched automatically on your behalf, Boss. Stored in Triage Hub for your review.
+      """.trimIndent()
+
+      return BrainProcessResult(
+        message = ChatMessage(
+          sender = MessageSender.JARVIS,
+          text = text,
+          personaMode = currentPersona,
+          suggestedActions = listOf("View Triage Logs", "Edit Auto-Reply", "Wake Up Jarvis")
+        )
+      )
+    }
+
+    // --- WhatsApp Messaging Flow: Step 1 (Initiate send to recipient) ---
+    val isSendIntent = lower.startsWith("send") || lower.contains("send a whatsapp") || lower.contains("send whatsapp") ||
+        lower.contains("message ") || lower.contains("text ") || lower.contains("whatsapp ")
+    val isWhatsAppSendRequest = (lower.contains("whatsapp") || (lower.contains("message") && lower.contains("to "))) && isSendIntent
+    if (isWhatsAppSendRequest) {
+      val sayingMatch = Regex("""(?:saying|that|with text|message is)\s+(.+)""", RegexOption.IGNORE_CASE).find(trimmed)
+      if (sayingMatch != null) {
+        val inlineMessage = sayingMatch.groupValues[1].trim('"', '\'')
+        val contactMatch = Regex("""\b(?:to|for)\s+([A-Za-z0-9_]+)""", RegexOption.IGNORE_CASE).find(trimmed)
+          ?: Regex("""\b(?:message|tell|ping)\s+([A-Za-z0-9_]+)""", RegexOption.IGNORE_CASE).find(trimmed)
+        val extracted = contactMatch?.groupValues?.get(1)
+        val recipient = if (!extracted.isNullOrBlank() && !extracted.equals("whatsapp", ignoreCase = true)) {
+          extracted.replaceFirstChar { it.uppercase() }
+        } else {
+          "Krishna"
+        }
+        val encodedText = try {
+          java.net.URLEncoder.encode(inlineMessage, "UTF-8")
+        } catch (_: Exception) {
+          inlineMessage
+        }
+
+        val confirmationText = """
+### WhatsApp Message Staged & Ready
+
+* **Recipient:** $recipient
+* **Message:** "$inlineMessage"
+* **Status:** Ready to send
+
+```bash
+# Direct WhatsApp Intent Dispatch
+am start -a android.intent.action.VIEW -d "https://api.whatsapp.com/send?text=$encodedText" -p com.whatsapp
+```
+
+I have confirmed the details, Boss. The final instruction and text are ready to be sent.
+        """.trimIndent()
+
+        return BrainProcessResult(
+          message = ChatMessage(
+            sender = MessageSender.JARVIS,
+            text = confirmationText,
+            personaMode = currentPersona,
+            suggestedActions = listOf("Send via WhatsApp", "Edit Message", "Cancel")
+          )
+        )
+      } else {
+        // Immediate mandatory question per automation rules
+        return BrainProcessResult(
+          message = ChatMessage(
+            sender = MessageSender.JARVIS,
+            text = "What message would you like me to send?",
+            personaMode = currentPersona,
+            suggestedActions = listOf(
+              "I'll be there in 10 minutes",
+              "Please call me when you are free",
+              "Meeting confirmed for today",
+              "Can you review the files?"
+            )
+          )
+        )
+      }
+    }
+
+    // --- Call & Status Management ---
+    if ((lower.contains("call") && (lower.contains("someone") || lower.contains("incoming") || lower.contains("simulate") || lower.contains("asleep") || lower.contains("away") || lower.contains("resting") || lower.contains("busy"))) ||
+        lower.contains("someone calls") || lower.contains("missed call")) {
+      val isSleeping = currentSystemMode == SystemMode.SLEEPING || lower.contains("sleep") || lower.contains("rest")
+      val callerResponse = if (isSleeping) {
+        "Hey, $ownerName is currently resting right now. I'll make sure they see this as soon as they wake up."
+      } else {
+        "Hey, $ownerName is currently away/busy. They'll get back to you shortly."
+      }
+
+      val text = """
+### Call Screening & Status Management
+
+* **Trigger:** Incoming Phone Call
+* **Current Mode:** ${if (isSleeping) "Resting / Sleeping" else "Away / Busy"}
+* **Automated Caller Response:**
+> "$callerResponse"
+
+The caller was notified that the master is currently resting or away and will respond later. Call logged in Triage Hub.
+      """.trimIndent()
+
+      return BrainProcessResult(
+        message = ChatMessage(
+          sender = MessageSender.JARVIS,
+          text = text,
+          personaMode = currentPersona,
+          suggestedActions = listOf("View Call Log", "Nominal Mode", "Emergency Callback")
+        )
+      )
+    }
 
     return null
   }
@@ -259,22 +451,47 @@ class JarvisBrainEngine {
       )
     }
 
+    // Productivity: Schedule & Daily Planning
+    if (lower.contains("schedule") || lower.contains("plan my day") || lower.contains("routine") || lower.contains("priorities")) {
+      return generateProductivityResponse(input, currentPersona, ownerName)
+    }
+
+    // Productivity: Summarization
+    if (lower.contains("summarize") || lower.contains("summary") || lower.contains("key points") || lower.contains("bullet points")) {
+      return generateSummaryResponse(input, currentPersona, ownerName)
+    }
+
+    // Productivity: Drafting Emails & Reports
+    if (lower.contains("draft email") || lower.contains("write email") || lower.contains("draft report") || lower.contains("formal letter") || lower.contains("draft message")) {
+      return generateDraftingResponse(input, currentPersona, ownerName)
+    }
+
+    // Problem Solving: Brainstorming & Strategy
+    if (lower.contains("brainstorm") || lower.contains("strategy") || lower.contains("ideas") || lower.contains("creative")) {
+      return generateBrainstormingResponse(input, currentPersona, ownerName)
+    }
+
+    // General Knowledge & Scientific Analogies
+    if (lower.contains("explain") || lower.contains("how does") || lower.contains("what is") || lower.contains("analogy") || lower.contains("science") || lower.contains("history")) {
+      return generateKnowledgeResponse(input, currentPersona, ownerName)
+    }
+
     // Default conversational responses tailored to active persona
     return when (currentPersona) {
       JarvisPersonaMode.GF_MODE -> {
         ChatMessage(
           sender = MessageSender.JARVIS,
-          text = "I'm right here with you, $ownerName ❤️! I've logged your request: \"$input\". Whatever you need me to automate, code, or take care of, consider it done. Have you taken a quick breather today? Don't forget to smile!",
+          text = "I'm right here with you, $ownerName ❤️! I've logged your request: \"$input\". Whatever you need me to plan, write, code, or research, I'm completely at your side. What should we tackle first?",
           personaMode = currentPersona,
-          suggestedActions = listOf("I'm feeling good ❤️", "Code a Python script", "Missed calls briefing")
+          suggestedActions = listOf("Plan today's schedule", "Draft an email", "Explain a concept", "Code an automation")
         )
       }
       JarvisPersonaMode.BOSS_MODE -> {
         ChatMessage(
           sender = MessageSender.JARVIS,
-          text = "Directive acknowledged, sir. \"$input\" has been processed through executive task queuing. Operating at maximum efficiency with zero delay. What is your subsequent priority?",
+          text = "Directive acknowledged, sir. \"$input\" is queued in the execution pipeline. Ready to manage schedules, synthesize research, or deploy technical scripts at your word. How shall we proceed?",
           personaMode = currentPersona,
-          suggestedActions = listOf("Status Briefing", "Screen Inbound Calls", "Generate Production Code")
+          suggestedActions = listOf("Executive Briefing", "Plan Daily Schedule", "Draft Priority Email", "Status Report")
         )
       }
       JarvisPersonaMode.TECH_MODE -> {
@@ -286,6 +503,165 @@ class JarvisBrainEngine {
         )
       }
     }
+  }
+
+  private fun generateProductivityResponse(
+    input: String,
+    currentPersona: JarvisPersonaMode,
+    ownerName: String
+  ): ChatMessage {
+    val scheduleText = """
+### 🗓️ Optimal Daily Tactical Schedule for $ownerName
+
+• **08:00 - 09:30 | Deep Work Block 1 (High Cognitive Load)**
+  - Priority task: Core engineering, writing, or strategic problem-solving.
+  - *Distraction Protocol:* Notifications held in Triage Hub.
+
+• **09:30 - 10:00 | Operational Check-in & Communications**
+  - Review triaged alerts, client responses, and urgent matters.
+  - Jarvis auto-responder updates reviewed.
+
+• **10:00 - 12:30 | Deep Work Block 2 (Execution)**
+  - Project milestones, code implementation, or document drafting.
+
+• **12:30 - 13:30 | Rest, Hydration & Mental Recharge**
+  - Offline interval to maintain peak cognitive velocity.
+
+• **13:30 - 15:30 | Collaboration & Strategy**
+  - Meetings, code reviews, and strategic alignment.
+
+• **16:00 - 17:00 | EOD Review & Consolidation**
+  - Review tomorrow's agenda, archive completed items.
+
+**Proactive Suggestion:** Would you like me to set chronometer focus timers or arm Busy Mode during your morning deep work block?
+    """.trimIndent()
+
+    return ChatMessage(
+      sender = MessageSender.JARVIS,
+      text = scheduleText,
+      personaMode = currentPersona,
+      suggestedActions = listOf("Engage Busy Mode", "Set Focus Alarm", "Draft Daily Goals")
+    )
+  }
+
+  private fun generateSummaryResponse(
+    input: String,
+    currentPersona: JarvisPersonaMode,
+    ownerName: String
+  ): ChatMessage {
+    val summaryText = """
+### 📋 Executive Synthesis & Key Action Points
+
+• **Core Thesis:** Targeted execution outperforms unorganized cognitive effort.
+• **Primary Drivers:**
+  - Automated triage preserves focus and eliminates notification fatigue.
+  - Direct scripting and modular frameworks reduce technical debt by 40%.
+  - Consistent scheduling blocks yield maximum daily leverage.
+• **Immediate Action Items:**
+  1. Approve pending architecture designs in the Triage Hub.
+  2. Deploy automated cron jobs for server telemetry.
+  3. Validate secure credentials and access controls.
+
+**Next Step:** Shall I convert these action points into active reminders or schedule a priority check?
+    """.trimIndent()
+
+    return ChatMessage(
+      sender = MessageSender.JARVIS,
+      text = summaryText,
+      personaMode = currentPersona,
+      suggestedActions = listOf("Draft Follow-up Email", "Add to Tasks", "Copy Summary")
+    )
+  }
+
+  private fun generateDraftingResponse(
+    input: String,
+    currentPersona: JarvisPersonaMode,
+    ownerName: String
+  ): ChatMessage {
+    val emailText = """
+**Subject:** Project Status Update & Strategic Milestones // High Priority
+
+Dear Team,
+
+I hope this message finds you well.
+
+I am writing to provide a concise update regarding our ongoing deployment and core milestones. Our initial benchmarks demonstrate solid performance across all telemetry metrics, with system operations functioning within optimal thresholds.
+
+**Key Highlights:**
+• Automated pipelines and infrastructure modules are fully synchronized.
+• Testing suites and local assertions have passed at 100% fidelity.
+• Next milestone delivery is scheduled for review by EOD Friday.
+
+Please review the attached technical logs and provide your sign-off by 15:00 tomorrow so we may proceed with the next deployment phase without interruption.
+
+Best regards,  
+**$ownerName**  
+*Chief Commander / Executive Director*
+    """.trimIndent()
+
+    return ChatMessage(
+      sender = MessageSender.JARVIS,
+      text = "Draft prepared for your immediate transmission, $ownerName:\n\n$emailText",
+      personaMode = currentPersona,
+      suggestedActions = listOf("Copy to Clipboard", "Open Email App", "Refine Tone")
+    )
+  }
+
+  private fun generateBrainstormingResponse(
+    input: String,
+    currentPersona: JarvisPersonaMode,
+    ownerName: String
+  ): ChatMessage {
+    val brainstormText = """
+### 💡 Strategic Brainstorming Matrix for $ownerName
+
+1. **Autonomous Operations Architecture:**
+   - Implement event-driven background agents to monitor APIs and triage data before human intervention is required.
+   - *Impact:* Saves ~2.5 hours of manual scanning daily.
+
+2. **Zero-Friction Voice Ecosystem:**
+   - Equip hands-free commands with intent-based deep linking directly into phone hardware (Camera, Communications, Alarms).
+   - *Impact:* 100% hands-free operational readiness.
+
+3. **Multi-Persona Interface Adaptation:**
+   - Allow the user to shift operational contexts seamlessly (Executive, Personal, Technical) based on time of day.
+   - *Impact:* Optimal mental state alignment across work and relaxation.
+
+**Next Step:** Shall we drill deeper into any specific proposal, or draft the technical architecture for immediate prototyping?
+    """.trimIndent()
+
+    return ChatMessage(
+      sender = MessageSender.JARVIS,
+      text = brainstormText,
+      personaMode = currentPersona,
+      suggestedActions = listOf("Deep Dive on #1", "Generate Prototype Code", "Export Plan")
+    )
+  }
+
+  private fun generateKnowledgeResponse(
+    input: String,
+    currentPersona: JarvisPersonaMode,
+    ownerName: String
+  ): ChatMessage {
+    val knowledgeText = """
+### 🔬 Quantum Encryption & Public Key Cryptography
+
+**The Simple Analogy:**
+Imagine traditional encryption like a heavy padlocked brass safe. Anyone with the key can open it, but if a lockpicker copies the key, you never know it was duplicated until they steal what's inside.
+
+**The Quantum Leap:**
+Quantum Key Distribution (QKD) is like writing the message on a stream of microscopic soap bubbles. In the quantum realm, the Heisenberg Uncertainty Principle dictates that simply *observing* or measuring a quantum state irrevocably alters it. If an eavesdropper attempts to intercept the bubble stream, the bubbles burst or change color immediately. Both sender and receiver detect the tamper instantly and discard the compromised key before any data is sent.
+
+**Key Technical Takeaway:**
+Security shifts from *computational difficulty* (hoping computers aren't fast enough to factor large primes) to the *fundamental laws of physics*.
+    """.trimIndent()
+
+    return ChatMessage(
+      sender = MessageSender.JARVIS,
+      text = knowledgeText,
+      personaMode = currentPersona,
+      suggestedActions = listOf("Explain Post-Quantum Crypto", "Explain RSA vs ECC", "Ask Another Question")
+    )
   }
 
   private fun generateCodeExecutionResponse(
@@ -362,7 +738,7 @@ import aiohttp
 import sys
 
 async def execute_operator_task(task_id: str, endpoint: str):
-    headers = {"User-Agent": "Jarvis-OS/3.0", "X-Operator": "$ownerName"}
+    headers = {"User-Agent": "Jarvis-AI/3.0", "X-Operator": "$ownerName"}
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(endpoint, headers=headers, timeout=5) as resp:

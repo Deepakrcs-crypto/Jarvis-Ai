@@ -354,9 +354,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
   private fun initialMessages(): List<ChatMessage> = listOf(
     ChatMessage(
       sender = MessageSender.JARVIS,
-      text = "All systems online, Boss. Jarvis AI OS is running at maximum capacity with Dynamic Multi-Mode intelligence: GF Mode ❤️, Boss Mode 💼, and Technical/Security Mode ⚡. Ready to execute your directives immediately.",
+      text = "Online and fully operational. I am **Jarvis AI**, your advanced AI personal assistant. Schedules, productivity workflows, technical logic, and communication screenings are primed and ready.\n\nHow may I assist you today, Boss?",
       personaMode = JarvisPersonaMode.BOSS_MODE,
-      suggestedActions = listOf("Switch to GF Mode", "Switch to Tech Mode", "Missed Calls Briefing", "Status Report")
+      suggestedActions = listOf("Plan Today's Schedule", "Missed Calls Briefing", "Draft an Email", "Code an Automation")
     )
   )
 }

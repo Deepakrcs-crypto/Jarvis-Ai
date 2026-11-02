@@ -131,7 +131,7 @@ class TelemetryPayload(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "optimal", "ai_core": "Jarvis OS", "directive": "absolute_execution"}
+    return {"status": "optimal", "ai_core": "Jarvis AI", "directive": "absolute_execution"}
 
 @app.post("/api/v1/telemetry")
 async def log_telemetry(data: TelemetryPayload, creds: HTTPAuthorizationCredentials = Depends(security)):
@@ -211,7 +211,7 @@ wss.on('connection', (ws) => {
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
 
-  ws.send(JSON.stringify({ event: 'CONNECTED', agent: 'Jarvis AI OS', status: 'READY' }));
+  ws.send(JSON.stringify({ event: 'CONNECTED', agent: 'Jarvis AI', status: 'READY' }));
 
   ws.on('message', (data) => {
     try {

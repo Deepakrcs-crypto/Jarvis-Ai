@@ -29,7 +29,7 @@ class CommunicationRepository {
       SystemMode.BUSY ->
         "Hey, $ownerName is currently away/busy. They'll get back to you shortly."
       SystemMode.NOMINAL ->
-        "Jarvis OS acknowledged your alert. Dispatched directly to $ownerName's heads-up display."
+        "Jarvis AI acknowledged your alert. Dispatched directly to $ownerName's heads-up display."
     }
 
     val isUrgent = message.contains("urgent", ignoreCase = true) ||
