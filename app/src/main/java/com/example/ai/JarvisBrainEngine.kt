@@ -165,53 +165,61 @@ class JarvisBrainEngine {
       )
     }
 
-    // --- Voice activation toggles ---
-    if (lower == "jarvis on" || lower == "jarvis, on" || lower == "activate jarvis" || lower == "wake up jarvis") {
-      val text = when (currentPersona) {
-        JarvisPersonaMode.GF_MODE -> "I'm right here, babe! ❤️ Audio and sensors are wide awake. What can I do for you?"
-        JarvisPersonaMode.BOSS_MODE -> "Jarvis AI is online and fully operational, Boss. All executive workflows and intelligence pipelines are operating at peak efficiency."
-        JarvisPersonaMode.TECH_MODE -> "[SYSTEM_ACTIVE] Neural interface initialized. Terminal awaiting commands, operator."
+    // --- Voice activation / Listening State toggles ---
+    val isWakeCommand = lower == "jarvis on" || lower == "jarvis, on" || lower == "activate jarvis" ||
+        lower == "wake up jarvis" || lower == "jarvis wake up" || lower == "wake up" ||
+        lower.contains("wake up") ||
+        trimmed.contains("जार्विस उठ जाओ") || trimmed.contains("उठ जाओ") ||
+        trimmed.contains("जार्विस बात सुनना स्टार्ट करो") || trimmed.contains("बात सुनना स्टार्ट करो") ||
+        trimmed.contains("बात सुनना शुरू करो") || trimmed.contains("सुनना शुरू करो")
+
+    val isSleepCommand = lower == "jarvis off" || lower == "jarvis, off" || lower == "standby" || lower == "jarvis standby" ||
+        lower == "jarvis sleep" || lower == "sleep jarvis" || lower == "sleep" ||
+        lower.contains("going to sleep") || lower.contains("sleep mode") || lower.contains("bedtime") ||
+        trimmed.contains("जार्विस सो जाओ") || trimmed.contains("सो जाओ") ||
+        trimmed.contains("जार्विस बात सुनना बंद करो") || trimmed.contains("बात सुनना बंद करो") ||
+        trimmed.contains("सुनना बंद करो")
+
+    if (isWakeCommand) {
+      val isHindi = trimmed.any { it in '\u0900'..'\u097F' } || lower.contains("karo") || lower.contains("jao")
+      val text = if (isHindi) {
+        "नमस्ते! Jarvis AI अब एक्टिव स्टेट (Active State / Awake) में है। मैंने आपकी बात सुनना स्टार्ट कर दिया है। बताइए, आपके लिए क्या कमांड रन करूँ?"
+      } else {
+        when (currentPersona) {
+          JarvisPersonaMode.GF_MODE -> "I'm right here, wide awake sweetheart! ❤️ Listening is fully active. What can I do for you?"
+          JarvisPersonaMode.BOSS_MODE -> "Jarvis AI is online and in Active Listening State, Boss. All executive workflows and phone control pipelines are awake and ready for your directives."
+          JarvisPersonaMode.TECH_MODE -> "[SYSTEM_ACTIVE] Jarvis AI awakened. Listening daemon engaged. Terminal awaiting commands, operator."
+        }
       }
       return BrainProcessResult(
         message = ChatMessage(
           sender = MessageSender.JARVIS,
           text = text,
           personaMode = currentPersona,
-          suggestedActions = listOf("Status Report", "Scan Network", "Code an App", "Sleep Protocol")
-        )
+          suggestedActions = listOf("Status Report", "Open Camera", "Send WhatsApp", "Jarvis sleep")
+        ),
+        switchSystemMode = SystemMode.NOMINAL
       )
     }
 
-    if (lower == "jarvis off" || lower == "jarvis, off" || lower == "standby" || lower == "jarvis standby") {
-      val text = when (currentPersona) {
-        JarvisPersonaMode.GF_MODE -> "Going to quiet standby, sweetheart. I'll be quietly watching over everything for you ❤️."
-        JarvisPersonaMode.BOSS_MODE -> "Transitioning to background standby telemetry, sir. I remain vigilant. Tap the Arc Reactor to recall."
-        JarvisPersonaMode.TECH_MODE -> "[DAEMON_STANDBY] Suspending foreground listeners. Background telemetry persistent."
-      }
-      return BrainProcessResult(
-        message = ChatMessage(
-          sender = MessageSender.JARVIS,
-          text = text,
-          personaMode = currentPersona,
-          suggestedActions = listOf("Jarvis, On", "Device Telemetry", "Auto-Responder Logs")
-        )
-      )
-    }
-
-    // --- Resting / Sleeping Auto-Responder Activation ---
-    if (lower.contains("resting") || lower.contains("going to sleep") || lower.contains("sleep mode") || lower.contains("bedtime")) {
+    if (isSleepCommand) {
       val replyTemplate = "Hey, $ownerName is currently resting right now. I'll make sure they see this as soon as they wake up."
-      val text = when (currentPersona) {
-        JarvisPersonaMode.GF_MODE -> "Rest well, my love! ❤️ I've taken full charge of your phone. Anyone calling or messaging will be told: \"$replyTemplate\". Sleep peacefully!"
-        JarvisPersonaMode.BOSS_MODE -> "Night protocol engaged, sir. All calls and messages will be autonomously handled with: \"$replyTemplate\". I will prepare a clean briefing for your waking hours."
-        JarvisPersonaMode.TECH_MODE -> "[PROTOCOL: REST] Silent daemon armed. Auto-responder rule active: \"$replyTemplate\". Intercepting packets to triage storage."
+      val isHindi = trimmed.any { it in '\u0900'..'\u097F' } || lower.contains("karo") || lower.contains("jao") || lower.contains("so jao")
+      val text = if (isHindi) {
+        "Jarvis AI अब स्लीप स्टेट (Sleep State) में जा रहा है। मैंने बात सुनना बंद कर दिया है और बैकग्राउंड में शांत हो गया हूँ। जब भी आपको मेरी ज़रूरत हो, 'जार्विस उठ जाओ' या 'Jarvis wake up' बोलें। शुभ रात्रि!"
+      } else {
+        when (currentPersona) {
+          JarvisPersonaMode.GF_MODE -> "Going to sleep now, sweetheart ❤️. Listening is paused and I'm resting silently. Say 'Jarvis wake up' whenever you need me!"
+          JarvisPersonaMode.BOSS_MODE -> "Jarvis AI is transitioning to Sleep State. Listening paused, command processing suspended. I will ignore general commands until you say 'Jarvis wake up'. Resting protocol active: \"$replyTemplate\"."
+          JarvisPersonaMode.TECH_MODE -> "[DAEMON_STANDBY] Jarvis AI entered Sleep State. Suspending foreground listeners. Standby engaged until wake signal."
+        }
       }
       return BrainProcessResult(
         message = ChatMessage(
           sender = MessageSender.JARVIS,
           text = text,
           personaMode = currentPersona,
-          suggestedActions = listOf("View Triage Logs", "Set Wake Alarm", "Wake Up Jarvis")
+          suggestedActions = listOf("Jarvis wake up", "जार्विस उठ जाओ", "View Triage Logs")
         ),
         switchSystemMode = SystemMode.SLEEPING
       )
@@ -407,6 +415,24 @@ The caller was notified that the master is currently resting or away and will re
           text = text,
           personaMode = currentPersona,
           suggestedActions = listOf("View Call Log", "Nominal Mode", "Emergency Callback")
+        )
+      )
+    }
+
+    // --- Sleep State Enforcement (Paused / Muted) ---
+    if (currentSystemMode == SystemMode.SLEEPING) {
+      val isHindi = trimmed.any { it in '\u0900'..'\u097F' } || lower.contains("karo") || lower.contains("jao") || lower.contains("batao")
+      val sleepNotice = if (isHindi) {
+        "Jarvis AI अभी स्लीप स्टेट (Sleep State) में है और बात सुनना बंद है। कमांड प्रोसेस करने के लिए कृपया 'जार्विस उठ जाओ' या 'Jarvis wake up' बोलें।"
+      } else {
+        "Jarvis AI is currently in Sleep State (Paused / Muted). Command execution is suspended. Please say \"Jarvis wake up\" or \"जार्विस उठ जाओ\" to activate listening."
+      }
+      return BrainProcessResult(
+        message = ChatMessage(
+          sender = MessageSender.JARVIS,
+          text = sleepNotice,
+          personaMode = currentPersona,
+          suggestedActions = listOf("Jarvis wake up", "जार्विस उठ जाओ", "Status Report")
         )
       )
     }

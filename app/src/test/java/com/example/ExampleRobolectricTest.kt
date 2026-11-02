@@ -116,4 +116,63 @@ class ExampleRobolectricTest {
     )
     assertTrue(callResult.message.text.contains("Alex is currently resting right now. I'll make sure they see this as soon as they wake up."))
   }
+
+  @Test
+  fun `verify listening state controls wake and sleep commands`() = kotlinx.coroutines.runBlocking {
+    val engine = com.example.ai.JarvisBrainEngine()
+
+    // 1. Sleep command in English
+    val sleepEn = engine.processCommand(
+      input = "Jarvis sleep",
+      currentSystemMode = SystemMode.NOMINAL,
+      currentPersona = JarvisPersonaMode.BOSS_MODE,
+      ownerName = "Alex",
+      history = emptyList()
+    )
+    assertEquals(SystemMode.SLEEPING, sleepEn.switchSystemMode)
+    assertTrue(sleepEn.message.text.contains("Sleep State") || sleepEn.message.text.contains("sleep"))
+
+    // 2. Sleep command in Hindi
+    val sleepHi = engine.processCommand(
+      input = "जार्विस सो जाओ",
+      currentSystemMode = SystemMode.NOMINAL,
+      currentPersona = JarvisPersonaMode.BOSS_MODE,
+      ownerName = "Alex",
+      history = emptyList()
+    )
+    assertEquals(SystemMode.SLEEPING, sleepHi.switchSystemMode)
+    assertTrue(sleepHi.message.text.contains("स्लीप स्टेट") || sleepHi.message.text.contains("बात सुनना बंद"))
+
+    // 3. General command while in Sleep State is ignored / paused
+    val generalCmd = engine.processCommand(
+      input = "Open YouTube",
+      currentSystemMode = SystemMode.SLEEPING,
+      currentPersona = JarvisPersonaMode.BOSS_MODE,
+      ownerName = "Alex",
+      history = emptyList()
+    )
+    assertTrue(generalCmd.message.text.contains("Sleep State") || generalCmd.message.text.contains("स्लीप स्टेट"))
+
+    // 4. Wake command in English
+    val wakeEn = engine.processCommand(
+      input = "Jarvis wake up",
+      currentSystemMode = SystemMode.SLEEPING,
+      currentPersona = JarvisPersonaMode.BOSS_MODE,
+      ownerName = "Alex",
+      history = emptyList()
+    )
+    assertEquals(SystemMode.NOMINAL, wakeEn.switchSystemMode)
+    assertTrue(wakeEn.message.text.contains("Active Listening") || wakeEn.message.text.contains("Active"))
+
+    // 5. Wake command in Hindi
+    val wakeHi = engine.processCommand(
+      input = "जार्विस उठ जाओ",
+      currentSystemMode = SystemMode.SLEEPING,
+      currentPersona = JarvisPersonaMode.BOSS_MODE,
+      ownerName = "Alex",
+      history = emptyList()
+    )
+    assertEquals(SystemMode.NOMINAL, wakeHi.switchSystemMode)
+    assertTrue(wakeHi.message.text.contains("एक्टिव स्टेट") || wakeHi.message.text.contains("बात सुनना स्टार्ट"))
+  }
 }
